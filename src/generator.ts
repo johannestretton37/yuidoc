@@ -1,5 +1,5 @@
 import * as vscode from 'vscode'
-import { classRegex, funcRegex, arrowFuncRegex, commentLineRegex } from './regex'
+import { classRegex, funcRegex, methodRegex, arrowFuncRegex, commentLineRegex } from './regex'
 
 class Generator {
   editor: vscode.TextEditor
@@ -16,7 +16,7 @@ class Generator {
   }
 
   generateAll = () => {
-    const fullRange: vscode.Range = new vscode.Range(0, 0, this.editor.document.lineCount, 0)
+    const fullRange: vscode.Range = new vscode.Range(0, 0, this.editor.document.lineCount - 1, 0)
     this.generateCommentsForRange(fullRange)
   }
 
@@ -34,11 +34,22 @@ class Generator {
     let currCommentStart: vscode.Position
     let currCommentEnd: vscode.Position
     let pointerIsInComment: boolean = false
-    for (let i: number = editRangeStartLineIndex; i < editRangeStartLineIndex; i++) {
+    let startLine: number = editRangeStartLineIndex
+    if (startLine > 0) {
+      // Check the line before so no comments already exists
+      let lineBeforeSelection = doc.lineAt(startLine - 1)
+      let lineContent = lineBeforeSelection.text.trim()
+      if (lineContent.startsWith('*/')) {
+        // Ignore next line
+        startLine += 1
+        console.log('ignoring', lineContent)
+        // TODO: - Check comment here
+      }
+    }
+    for (let i: number = startLine; i <= editRangeEndLineIndex; i++) {
       let line = doc.lineAt(i)
-      // console.log(line.text)
       let range = line.range
-      if (!line.range.isEmpty) {
+      if (!range.isEmpty) {
         // Count spaces before words
         let indent = this.indentTo(line.firstNonWhitespaceCharacterIndex)
         // Extract words only
@@ -67,20 +78,28 @@ class Generator {
           // Reset variables
           pointerIsInComment = false
           this.edit.insert(currCommentStart, validatedComment)
-          continue
+          break
         }
         let words = lineContent.split(' ')
         // Generate comment if line matches any predefined regexes
         if (classRegex.test(lineContent)) {
+          console.log('classRegex match')
           this.edit.insert(range.start, this.classComment(words[1], indent))
           addedComments++
         }
         if (funcRegex.test(lineContent)) {
-          this.edit.insert(range.start, this.funcComment(false, lineContent, indent))
+          console.log('funcRegex match')
+          this.edit.insert(range.start, this.funcComment('function', lineContent, indent))
+          addedComments++
+        }
+        if (methodRegex.test(lineContent)) {
+          console.log('methodRegex match')
+          this.edit.insert(range.start, this.funcComment('method', lineContent, indent))
           addedComments++
         }
         if (arrowFuncRegex.test(lineContent)) {
-          this.edit.insert(range.start, this.funcComment(true, lineContent, indent))
+          console.log('arrowRegex match')
+          this.edit.insert(range.start, this.funcComment('arrow', lineContent, indent))
           addedComments++
         }
       }
@@ -134,9 +153,17 @@ class Generator {
     return output
   }
 
-  funcComment(isArrow: boolean, declaration: string, indent: string) {
+  funcComment(type: string, declaration: string, indent: string) {
     let words = declaration.split(' ')
-    const regex = isArrow ? arrowFuncRegex : funcRegex
+    let regex
+    switch (type) {
+      case 'function':
+        regex = funcRegex
+      case 'arrow':
+        regex = arrowFuncRegex
+      case 'method':
+        regex = methodRegex
+    }
     let match: RegExpExecArray | null
     match = regex.exec(declaration)
     let name, args

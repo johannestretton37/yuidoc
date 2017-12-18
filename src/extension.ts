@@ -21,7 +21,7 @@ export function activate(context: vscode.ExtensionContext) {
     generator.generateAll()
   })
 
-  let generateCommentsSelected = vscode.commands.registerTextEditorCommand('extension.generateCommentsAll', (editor, edit) => {
+  let generateCommentsSelected = vscode.commands.registerTextEditorCommand('extension.generateCommentsSelected', (editor, edit) => {
     const generator = new Generator(editor, edit)
     generator.generateSelected()
   })
